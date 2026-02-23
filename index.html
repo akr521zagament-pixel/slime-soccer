@@ -200,7 +200,10 @@ function toggleJoinForm(){
 // ===== LAN =====
 function getWsUrl(){
   const h=location.hostname||'localhost';
-  return `ws://${h}:3000`;
+  const isLocal=h==='localhost'||h==='127.0.0.1';
+  const proto=isLocal?'ws':'wss';
+  const port=isLocal?':3000':'';
+  return `${proto}://${h}${port}`;
 }
 function wsClose(){ if(ws){try{ws.close();}catch(e){} ws=null;} }
 
