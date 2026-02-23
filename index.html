@@ -1,0 +1,509 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no"/>
+<title>Soccer Slime</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0;}
+body{background:#111;color:#fff;font-family:sans-serif;display:flex;flex-direction:column;align-items:center;min-height:100vh;}
+h1{font-size:28px;margin:20px 0 8px;}
+h2{font-size:22px;margin-bottom:12px;}
+.sub{color:#aaa;font-size:13px;margin-bottom:4px;}
+.row{display:flex;gap:12px;justify-content:center;flex-wrap:wrap;margin:12px 0;}
+button{cursor:pointer;border:2px solid #4a90d9;border-radius:10px;background:#1a3a6e;color:#fff;font-size:15px;padding:12px 20px;touch-action:manipulation;-webkit-tap-highlight-color:transparent;}
+button:active{background:#2a5aaa;}
+.btn-gray{background:#333;border-color:#666;}
+.card{background:#1a2a3a;border:1px solid #4a6a8a;border-radius:12px;padding:16px;max-width:420px;width:100%;margin:0 auto 12px;text-align:left;font-size:13px;}
+.card h3{color:#ffd700;text-align:center;margin-bottom:10px;}
+.lbl{color:#ffd700;font-weight:bold;margin-top:8px;margin-bottom:4px;}
+.cc{color:#ccc;line-height:1.7;}
+#screen-menu,#screen-duration,#screen-lan{padding:20px;text-align:center;}
+#screen-game{display:none;flex-direction:column;align-items:center;width:100%;}
+#scoreboard{background:#1a3a6e;padding:8px 20px;width:100%;max-width:800px;display:flex;justify-content:space-between;align-items:center;border-radius:12px 12px 0 0;}
+#canvas-wrap{width:100%;max-width:800px;aspect-ratio:800/400;}
+canvas{width:100%;height:100%;display:block;border:4px solid #333;box-sizing:border-box;}
+#touch-pad{width:100%;max-width:800px;background:#0a1a2a;padding:10px 12px;display:flex;justify-content:flex-end;align-items:center;box-sizing:border-box;}
+#touch-pad.two{justify-content:space-between;}
+.dpad{display:flex;flex-direction:column;gap:4px;align-items:center;}
+.drow{display:flex;gap:6px;}
+.dcol{display:flex;flex-direction:column;gap:6px;}
+.tbtn{background:#1e3a5f;border:2px solid #4a90d9;border-radius:10px;color:#fff;font-size:20px;font-weight:bold;width:60px;height:60px;display:flex;align-items:center;justify-content:center;user-select:none;touch-action:none;-webkit-tap-highlight-color:transparent;}
+.tbtn.green{background:#1a4a2e;}
+.tbtn.orange{background:#4a2a1a;}
+.tlabel{font-size:11px;text-align:center;margin-top:2px;}
+.cyan{color:#00CED1;} .red{color:#DC143C;}
+#overlay{position:fixed;inset:0;background:rgba(0,0,0,0.85);display:none;align-items:center;justify-content:center;z-index:100;}
+.obox{background:#1a2a3a;border:2px solid #4a90d9;border-radius:16px;padding:32px;text-align:center;max-width:340px;width:90%;}
+.obox h2{margin-bottom:16px;}
+.obox p{color:#ccc;margin-bottom:12px;font-size:14px;}
+input[type=text]{background:#0a1a2a;border:2px solid #4a90d9;border-radius:8px;color:#fff;font-size:22px;padding:10px 14px;width:160px;text-align:center;letter-spacing:6px;text-transform:uppercase;}
+.roomcode{font-size:48px;font-weight:bold;letter-spacing:8px;color:#ffd700;margin:12px 0;}
+.err{color:#ff6b6b;font-size:13px;margin-top:6px;}
+</style>
+</head>
+<body>
+
+<!-- メニュー -->
+<div id="screen-menu">
+  <h1>⚽ Soccer Slime</h1>
+  <p class="sub">元作: Quin Pendragon　改造: Claude</p>
+  <div class="row" style="margin-top:20px;">
+    <button onclick="goMode('single')">一人プレイ（AI対戦）</button>
+    <button onclick="goMode('multi')">二人プレイ（同端末）</button>
+    <button onclick="show('screen-lan')">🌐 LAN対戦</button>
+  </div>
+</div>
+
+<!-- 時間選択 -->
+<div id="screen-duration" style="display:none;">
+  <h2>ゲーム時間を選んでください</h2>
+  <div style="font-size:17px;margin-bottom:16px;">
+    <span class="cyan">シアンチーム</span> vs <span class="red">レッドチーム</span>
+  </div>
+  <div class="row">
+    <button onclick="startGame('1min')">1分</button>
+    <button onclick="startGame('2min')">2分</button>
+    <button onclick="startGame('4min')">4分</button>
+    <button onclick="startGame('8min')">8分</button>
+    <button onclick="startGame('worldcup')">W杯（5分）</button>
+  </div>
+  <div class="card">
+    <h3>📖 説明書</h3>
+    <p class="lbl">🎯 目的</p>
+    <p class="cc">相手のゴールにボールを蹴り込んで得点！時間内に多くゴールを決めたチームが勝利。</p>
+    <p class="lbl">🕹️ 操作</p>
+    <p id="ctrl-text" class="cc"></p>
+    <p class="lbl">⚽ ルール</p>
+    <p class="cc">・ゴールに入れると1点<br>・自陣ゴールに1秒以上いるとペナルティ（相手+1点）<br>・ボールをつかんで放すと勢いよく飛ぶ</p>
+    <p class="lbl">💡 コツ</p>
+    <p class="cc">・ジャンプしながら当たると高く飛ぶ<br>・つかんで素早く動かしてから放すと鋭いシュートに<br>・相手がつかんでいるボールにぶつかると奪える！</p>
+  </div>
+  <button class="btn-gray" onclick="backToMenu()">戻る</button>
+</div>
+
+<!-- LAN メニュー -->
+<div id="screen-lan" style="display:none;">
+  <h2>🌐 LAN対戦</h2>
+  <div class="card" style="text-align:center;">
+    <p class="cc">同じWi-Fi内の相手と対戦できます。<br>まず <b>server.js</b> を起動してください。</p>
+    <p style="margin-top:8px;font-size:12px;color:#aaa;">起動: <code>node server.js</code>　準備: <code>npm install ws</code></p>
+  </div>
+  <div class="row">
+    <button onclick="lanCreate()">ルームを作る（ホスト）</button>
+    <button onclick="toggleJoinForm()">ルームに参加（ゲスト）</button>
+  </div>
+  <div id="join-form" style="display:none;text-align:center;margin-top:8px;">
+    <p style="margin-bottom:8px;">ルームコードを入力</p>
+    <input type="text" id="room-input" maxlength="4" placeholder="XXXX"/>
+    <div class="row"><button onclick="lanJoin()">参加する</button></div>
+    <div id="join-err" class="err"></div>
+  </div>
+  <div class="row"><button class="btn-gray" onclick="backToMenu()">戻る</button></div>
+</div>
+
+<!-- ゲーム画面 -->
+<div id="screen-game">
+  <div id="scoreboard">
+    <span id="score-l" class="cyan" style="font-weight:bold;font-size:17px;">シアン: 0</span>
+    <span id="timer" style="font-family:monospace;font-size:21px;">00:00</span>
+    <span id="score-r" class="red" style="font-weight:bold;font-size:17px;">0 :レッド</span>
+  </div>
+  <div id="canvas-wrap"><canvas id="gc" width="800" height="400"></canvas></div>
+  <div id="touch-pad">
+    <!-- 左コントローラー（二人プレイ / LANホスト） -->
+    <div id="dpad-l" style="display:none;">
+      <div class="dpad">
+        <div class="drow">
+          <div class="tbtn" id="tll" ontouchstart="tb('left','left',true)" ontouchend="tb('left','left',false)" onmousedown="tb('left','left',true)" onmouseup="tb('left','left',false)" onmouseleave="tb('left','left',false)">&#8592;</div>
+          <div class="dcol">
+            <div class="tbtn green" ontouchstart="tb('left','jump',true)" ontouchend="tb('left','jump',false)" onmousedown="tb('left','jump',true)" onmouseup="tb('left','jump',false)" onmouseleave="tb('left','jump',false)">&#8593;</div>
+            <div class="tbtn orange" ontouchstart="tb('left','grab',true)" ontouchend="tb('left','grab',false)" onmousedown="tb('left','grab',true)" onmouseup="tb('left','grab',false)" onmouseleave="tb('left','grab',false)">&#9917;</div>
+          </div>
+          <div class="tbtn" ontouchstart="tb('left','right',true)" ontouchend="tb('left','right',false)" onmousedown="tb('left','right',true)" onmouseup="tb('left','right',false)" onmouseleave="tb('left','right',false)">&#8594;</div>
+        </div>
+        <div class="tlabel cyan">シアン</div>
+      </div>
+    </div>
+    <!-- 右コントローラー -->
+    <div id="dpad-r">
+      <div class="dpad">
+        <div class="drow">
+          <div class="tbtn" ontouchstart="tb('right','left',true)" ontouchend="tb('right','left',false)" onmousedown="tb('right','left',true)" onmouseup="tb('right','left',false)" onmouseleave="tb('right','left',false)">&#8592;</div>
+          <div class="dcol">
+            <div class="tbtn green" ontouchstart="tb('right','jump',true)" ontouchend="tb('right','jump',false)" onmousedown="tb('right','jump',true)" onmouseup="tb('right','jump',false)" onmouseleave="tb('right','jump',false)">&#8593;</div>
+            <div class="tbtn orange" ontouchstart="tb('right','grab',true)" ontouchend="tb('right','grab',false)" onmousedown="tb('right','grab',true)" onmouseup="tb('right','grab',false)" onmouseleave="tb('right','grab',false)">&#9917;</div>
+          </div>
+          <div class="tbtn" ontouchstart="tb('right','right',true)" ontouchend="tb('right','right',false)" onmousedown="tb('right','right',true)" onmouseup="tb('right','right',false)" onmouseleave="tb('right','right',false)">&#8594;</div>
+        </div>
+        <div class="tlabel red">レッド</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- オーバーレイ -->
+<div id="overlay">
+  <div class="obox" id="obox"></div>
+</div>
+
+<script>
+// ===== 定数 =====
+const GW=800,GH=400,GND=80,SR=40,BR=10,GOW=80,GOH=120;
+const GRAV=0.6,SPD=5,JPW=-12,DAMP=0.99,BDAMP=0.8,MAXSPD=13;
+
+// ===== 状態 =====
+let playerMode='single'; // single | multi | lan-host | lan-guest
+let ws=null, roomCode='';
+let running=false, timeLeft=0;
+let score={left:0,right:0};
+let gs=makeGS();
+const keys={}, touch={left:{},right:{}};
+let remoteInput={left:false,right:false,jump:false,grab:false};
+let rafId=null, timerId=null, lastT=0;
+
+function makeGS(){
+  return {
+    ls:{x:200,y:GH-GND,vx:0,vy:0,gr:false,hb:false,glt:0,tx:200,dc:0,ss:true,lby:GH-GND,stk:0},
+    rs:{x:600,y:GH-GND,vx:0,vy:0,gr:false,hb:false,glt:0},
+    b:{x:GW/2,y:150,vx:0,vy:0,by:null,ba:0,bav:0}
+  };
+}
+
+// ===== 画面切替 =====
+const screens=['screen-menu','screen-duration','screen-lan','screen-game'];
+function show(id){
+  screens.forEach(s=>{
+    const el=document.getElementById(s);
+    el.style.display = s===id ? (s==='screen-game'?'flex':'block') : 'none';
+  });
+}
+
+function goMode(mode){
+  playerMode=mode;
+  const ct=document.getElementById('ctrl-text');
+  ct.innerHTML = mode==='multi'
+    ? '左(シアン): A/D移動 W:ジャンプ S:つかむ<br>右(レッド): 矢印移動 &#8593;:ジャンプ &#8595;:つかむ<br>&#128241;スマホ: 画面下ボタン'
+    : '&#8592;&#8594;:移動　&#8593;:ジャンプ　&#8595;:つかむ<br>&#128241;スマホ: 画面下ボタン';
+  show('screen-duration');
+}
+
+function backToMenu(){
+  stopGame(); wsClose(); show('screen-menu'); hideOverlay();
+}
+
+function toggleJoinForm(){
+  const f=document.getElementById('join-form');
+  f.style.display=f.style.display==='none'?'block':'none';
+}
+
+// ===== LAN =====
+function getWsUrl(){
+  const h=location.hostname||'localhost';
+  return `ws://${h}:3000`;
+}
+function wsClose(){ if(ws){try{ws.close();}catch(e){} ws=null;} }
+
+function wsConnect(cb){
+  wsClose();
+  ws=new WebSocket(getWsUrl());
+  ws.onopen=cb;
+  ws.onmessage=e=>handleWs(JSON.parse(e.data));
+  ws.onerror=()=>showOverlay('<h2>接続エラー</h2><p>server.jsが起動しているか確認してください</p><button onclick="backToMenu()">戻る</button>');
+  ws.onclose=()=>{ if(running) showOverlay('<h2>切断されました</h2><button onclick="backToMenu()">メニューへ</button>'); };
+}
+
+function lanCreate(){ wsConnect(()=>ws.send(JSON.stringify({type:'create_room'}))); }
+
+function lanJoin(){
+  const code=document.getElementById('room-input').value.toUpperCase();
+  if(code.length!==4){ document.getElementById('join-err').textContent='4文字のコードを入力してください'; return; }
+  wsConnect(()=>ws.send(JSON.stringify({type:'join_room',code})));
+}
+
+function handleWs(msg){
+  if(msg.type==='room_created'){
+    roomCode=msg.code; playerMode='lan-host';
+    showOverlay(`<h2>ルーム作成完了</h2><p>このコードを相手に教えてください</p><div class="roomcode">${msg.code}</div><p style="color:#ffd700;">相手の参加を待っています…</p>`);
+  }
+  else if(msg.type==='guest_joined'){
+    hideOverlay(); setupTouchPad(); show('screen-game');
+    startGame('2min', true);
+  }
+  else if(msg.type==='joined'){
+    playerMode='lan-guest';
+    hideOverlay(); setupTouchPad(); show('screen-game');
+    startGame('2min', true);
+  }
+  else if(msg.type==='error'){
+    document.getElementById('join-err').textContent=msg.message;
+  }
+  else if(msg.type==='input'&&playerMode==='lan-host'){
+    remoteInput=msg.input;
+  }
+  else if(msg.type==='game_state'&&playerMode==='lan-guest'){
+    gs=msg.state; score=msg.score; timeLeft=msg.timeLeft; updateHUD();
+  }
+  else if(msg.type==='opponent_disconnected'){
+    showOverlay('<h2>相手が切断しました</h2><button onclick="backToMenu()">メニューへ</button>'); stopGame();
+  }
+}
+
+function sendInput(){
+  if(!ws||ws.readyState!==1) return;
+  ws.send(JSON.stringify({type:'input',input:{
+    left:!!(keys['arrowleft']||touch.right.left),
+    right:!!(keys['arrowright']||touch.right.right),
+    jump:!!(keys['arrowup']||touch.right.jump),
+    grab:!!(keys['arrowdown']||touch.right.grab)
+  }}));
+}
+
+function sendGameState(){
+  if(!ws||ws.readyState!==1) return;
+  ws.send(JSON.stringify({type:'game_state',state:gs,score,timeLeft}));
+}
+
+// ===== タッチ =====
+function tb(side,action,val){ touch[side][action]=val; }
+
+function setupTouchPad(){
+  const pad=document.getElementById('touch-pad');
+  const dl=document.getElementById('dpad-l');
+  const dr=document.getElementById('dpad-r');
+  if(playerMode==='multi'){
+    pad.classList.add('two'); dl.style.display='block'; dr.style.display='block';
+  } else if(playerMode==='lan-host'){
+    pad.classList.add('two'); dl.style.display='block'; dr.style.display='none';
+  } else {
+    pad.classList.remove('two'); dl.style.display='none'; dr.style.display='block';
+  }
+}
+
+// ===== キーボード =====
+document.addEventListener('keydown',e=>{
+  if(e.target.tagName==='INPUT') return;
+  e.preventDefault(); keys[e.key.toLowerCase()]=true;
+});
+document.addEventListener('keyup',e=>{
+  if(e.target.tagName==='INPUT') return;
+  e.preventDefault(); keys[e.key.toLowerCase()]=false;
+});
+
+// ===== HUD =====
+function updateHUD(){
+  document.getElementById('score-l').textContent=`シアン: ${score.left}`;
+  document.getElementById('score-r').textContent=`${score.right} :レッド`;
+  const m=Math.floor(timeLeft/60), s=timeLeft%60;
+  document.getElementById('timer').textContent=`${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
+}
+
+// ===== ゲーム起動 =====
+function startGame(mode, lanMode=false){
+  const times={'1min':60,'2min':120,'4min':240,'8min':480,'worldcup':300};
+  gs=makeGS(); score={left:0,right:0}; timeLeft=times[mode]||120;
+  updateHUD(); running=true;
+  if(!lanMode){ setupTouchPad(); show('screen-game'); }
+  clearInterval(timerId);
+  timerId=setInterval(()=>{
+    if(!running) return;
+    timeLeft--; updateHUD();
+    if(timeLeft<=0){ stopGame(); endGame(); }
+  },1000);
+  if(rafId) cancelAnimationFrame(rafId);
+  rafId=requestAnimationFrame(loop);
+}
+
+function stopGame(){ running=false; clearInterval(timerId); }
+
+function endGame(){
+  let msg='';
+  if(score.left>score.right) msg='<h2>&#127881; シアンチームの勝利！</h2>';
+  else if(score.right>score.left) msg='<h2>&#127881; レッドチームの勝利！</h2>';
+  else msg='<h2>引き分け！</h2>';
+  msg+=`<p style="font-size:20px;margin:12px 0;">${score.left} ー ${score.right}</p>`;
+  msg+=`<div style="display:flex;gap:12px;justify-content:center;flex-wrap:wrap;">
+    <button onclick="replayGame()">もう一度</button>
+    <button class="btn-gray" onclick="backToMenu()">メニューへ</button>
+  </div>`;
+  showOverlay(msg);
+}
+
+function replayGame(){ hideOverlay(); startGame('2min'); }
+
+// ===== オーバーレイ =====
+function showOverlay(html){ document.getElementById('obox').innerHTML=html; document.getElementById('overlay').style.display='flex'; }
+function hideOverlay(){ document.getElementById('overlay').style.display='none'; }
+
+// ===== AI =====
+function aiInput(){
+  const ai=gs.ls, b=gs.b;
+  if(ai.dc>0){ ai.dc--; return {left:ai.vx<0,right:ai.vx>0,jump:false,grab:false}; }
+  if(ai.ss&&timeLeft>55){
+    ai.tx=200;
+    if(Math.abs(b.x-ai.x)<150||timeLeft<=55){ai.ss=false;ai.dc=15;}
+    return {left:false,right:false,jump:false,grab:false};
+  }
+  const bh=GH-GND-b.y, dist=Math.abs(ai.x-b.x);
+  const toGoal=Math.abs(b.x-(GW-GOW/2)), toMine=Math.abs(b.x-GOW/2);
+  let tx=ai.tx, jump=false, grab=false;
+  if(toGoal<toMine*1.5||(b.x>GW*0.35&&b.vx>=-1)){
+    tx=bh>60&&dist<150?b.x-45:b.x-20;
+    if(dist<100){
+      if(bh<35&&dist<60&&!ai.hb&&b.vy>-2) grab=true;
+      else if(bh>30&&bh<90) jump=true;
+    }
+  } else if(b.x<GW*0.65||b.vx<-1){
+    tx=b.x;
+    if(b.x<GOW*2.5&&b.vx<-1&&dist<120) jump=true;
+  } else tx=GW*0.4;
+  if(Math.abs(tx-ai.tx)>15){ai.tx=tx;ai.dc=10;}
+  const diff=ai.tx-ai.x;
+  ai.vx=Math.abs(diff)>10?Math.sign(diff)*SPD*Math.min(Math.abs(diff)/50,1):0;
+  ai.gr=grab;
+  if(jump&&ai.vy===0) ai.vy=JPW;
+  return {left:ai.vx<0,right:ai.vx>0,jump:jump&&ai.vy===0,grab};
+}
+
+// ===== 物理 =====
+function goal(side){
+  if(side==='left') score.left++; else score.right++;
+  updateHUD(); gs=makeGS();
+}
+
+function physics(){
+  // 入力取得
+  let li, ri;
+  if(playerMode==='multi'){
+    li={left:!!(keys['a']||touch.left.left),right:!!(keys['d']||touch.left.right),jump:!!(keys['w']||touch.left.jump),grab:!!(keys['s']||touch.left.grab)};
+    ri={left:!!(keys['arrowleft']||touch.right.left),right:!!(keys['arrowright']||touch.right.right),jump:!!(keys['arrowup']||touch.right.jump),grab:!!(keys['arrowdown']||touch.right.grab)};
+  } else if(playerMode==='lan-host'){
+    li={left:!!(keys['arrowleft']||touch.left.left),right:!!(keys['arrowright']||touch.left.right),jump:!!(keys['arrowup']||touch.left.jump),grab:!!(keys['arrowdown']||touch.left.grab)};
+    ri=remoteInput;
+  } else if(playerMode==='lan-guest'){
+    sendInput(); return; // ゲストは入力送信のみ
+  } else {
+    li=aiInput();
+    ri={left:!!(keys['arrowleft']||touch.right.left),right:!!(keys['arrowright']||touch.right.right),jump:!!(keys['arrowup']||touch.right.jump),grab:!!(keys['arrowdown']||touch.right.grab)};
+  }
+
+  const ls=gs.ls, rs=gs.rs, b=gs.b;
+
+  // スライム移動
+  if(li.left) ls.vx=-SPD; else if(li.right) ls.vx=SPD; else ls.vx=0;
+  if(li.jump&&ls.y>=GH-GND-1&&!ls.gr) ls.vy=JPW;
+  ls.gr=li.grab;
+  if(ri.left) rs.vx=-SPD; else if(ri.right) rs.vx=SPD; else rs.vx=0;
+  if(ri.jump&&rs.y>=GH-GND-1&&!rs.gr) rs.vy=JPW;
+  rs.gr=ri.grab;
+
+  [ls,rs].forEach((sl,i)=>{
+    sl.vy+=GRAV; sl.x+=sl.vx; sl.y+=sl.vy;
+    if(sl.x<SR) sl.x=SR; if(sl.x>GW-SR) sl.x=GW-SR;
+    if(sl.y>GH-GND){sl.y=GH-GND;sl.vy=0;}
+    const inGoal=(i===0&&sl.x<GOW)||(i===1&&sl.x>GW-GOW);
+    if(inGoal){sl.glt+=1/60;if(sl.glt>=1) goal(i===0?'right':'left');}
+    else sl.glt=0;
+  });
+
+  // ボール
+  if(b.by){
+    const gr=b.by==='left'?ls:rs;
+    b.bav+=(-gr.vx*0.008*(b.by==='left'?1:-1));
+    b.bav*=0.85; b.ba+=b.bav;
+    if(b.by==='left'){
+      if(b.ba<-Math.PI/2){b.ba=-Math.PI/2;b.bav=0;}
+      else if(b.ba>Math.PI/2){b.ba=Math.PI/2;b.bav=0;}
+    } else {
+      while(b.ba<0) b.ba+=Math.PI*2; while(b.ba>Math.PI*2) b.ba-=Math.PI*2;
+      if(b.ba<Math.PI/2){b.ba=Math.PI/2;b.bav=0;}
+      else if(b.ba>3*Math.PI/2){b.ba=3*Math.PI/2;b.bav=0;}
+    }
+    const hd=SR+BR-5;
+    b.x=gr.x+Math.cos(b.ba)*hd; b.y=gr.y+Math.sin(b.ba)*hd;
+    b.vx=gr.vx; b.vy=gr.vy;
+    if(!gr.gr){
+      const sp=Math.abs(b.bav)*20;
+      b.vx=gr.vx*1.5+Math.cos(b.ba)*(3+sp);
+      b.vy=gr.vy-2+Math.sin(b.ba)*sp*0.3;
+      b.by=null;b.ba=0;b.bav=0;gr.hb=false;
+    }
+  } else {
+    b.vy+=GRAV;b.vx*=DAMP;b.x+=b.vx;b.y+=b.vy;
+  }
+  if(b.x<BR){b.x=BR;b.vx=-b.vx*BDAMP;}
+  if(b.x>GW-BR){b.x=GW-BR;b.vx=-b.vx*BDAMP;}
+  if(b.y>GH-GND-BR){b.y=GH-GND-BR;b.vy=-b.vy*BDAMP;}
+  if(b.y<BR){b.y=BR;b.vy=-b.vy*BDAMP;}
+  if(b.x<=BR&&b.y>GH-GND-GOH) goal('right');
+  else if(b.x>=GW-BR&&b.y>GH-GND-GOH) goal('left');
+
+  // ボール衝突
+  [ls,rs].forEach((sl,i)=>{
+    const nm=i===0?'left':'right', ot=i===0?rs:ls;
+    const dx=b.x-sl.x,dy=b.y-sl.y,d=Math.hypot(dx,dy);
+    if(d<SR+BR){
+      if(b.by&&b.by!==nm){
+        if(Math.hypot(sl.vx,sl.vy)>2||Math.abs(sl.vy)>5){
+          b.by=null;b.ba=0;b.bav=0;ot.hb=false;
+          const a=Math.atan2(dy,dx);b.vx=Math.cos(a)*8+sl.vx;b.vy=Math.sin(a)*8+sl.vy;
+        }
+      } else if(sl.gr&&!b.by){
+        b.by=nm;b.ba=Math.atan2(dy,dx);b.bav=0;sl.hb=true;
+      } else if(!b.by){
+        const a=Math.atan2(dy,dx);
+        if(b.y<sl.y||Math.abs(a)<Math.PI*0.5){
+          b.x=sl.x+Math.cos(a)*(SR+BR);b.y=sl.y+Math.sin(a)*(SR+BR);
+          const sp=Math.hypot(b.vx,b.vy);
+          b.vx=Math.cos(a)*sp*1.5+sl.vx*0.5;b.vy=Math.sin(a)*sp*1.5+sl.vy*0.5;
+          const ns=Math.hypot(b.vx,b.vy);
+          if(ns>MAXSPD){b.vx*=MAXSPD/ns;b.vy*=MAXSPD/ns;}
+        }
+      }
+    }
+  });
+
+  if(playerMode==='lan-host') sendGameState();
+}
+
+// ===== 描画 =====
+const canvas=document.getElementById('gc');
+const ctx=canvas.getContext('2d');
+
+function drawGame(){
+  ctx.fillStyle='#0000FF';ctx.fillRect(0,0,GW,GH);
+  ctx.fillStyle='#808080';ctx.fillRect(0,GH-GND,GW,GND);
+
+  function drawGoal(mirror){
+    const x1=mirror?GW-GOW:0,x2=mirror?GW:GOW,mx=mirror?GW-GOW/2:GOW/2;
+    ctx.strokeStyle='#FFF';ctx.lineWidth=3;
+    ctx.beginPath();ctx.moveTo(x1,GH-GND);ctx.lineTo(x2,GH-GND);ctx.moveTo(mx,GH-GND);ctx.lineTo(mx,GH-GND-GOH);ctx.stroke();
+    ctx.lineWidth=1.5;ctx.strokeStyle='rgba(255,255,255,0.7)';
+    for(let i=x1;i<=x2;i+=10){ctx.beginPath();ctx.moveTo(i,GH-GND-GOH);ctx.lineTo(i,GH-GND);ctx.stroke();}
+    for(let j=GH-GND-GOH;j<=GH-GND;j+=10){ctx.beginPath();ctx.moveTo(x1,j);ctx.lineTo(x2,j);ctx.stroke();}
+  }
+  drawGoal(false);drawGoal(true);
+
+  function drawSlime(sl,isRight,col,acc){
+    ctx.fillStyle=col;ctx.beginPath();ctx.arc(sl.x,sl.y,SR,Math.PI,0);ctx.closePath();ctx.fill();
+    ctx.fillStyle=acc;ctx.beginPath();ctx.arc(sl.x,sl.y,SR-5,Math.PI+0.3,Math.PI+0.7);ctx.arc(sl.x,sl.y,SR-15,Math.PI+0.7,Math.PI+0.3,true);ctx.closePath();ctx.fill();
+    const ex=sl.x+(isRight?-SR*0.3:SR*0.3);
+    ctx.fillStyle='#FFF';ctx.beginPath();ctx.arc(ex,sl.y-SR*0.3,5,0,Math.PI*2);ctx.fill();
+    ctx.fillStyle='#000';ctx.beginPath();ctx.arc(ex+(isRight?-0.5:0.5),sl.y-SR*0.3,2,0,Math.PI*2);ctx.fill();
+  }
+  drawSlime(gs.ls,false,'#00CED1','#008B8B');
+  drawSlime(gs.rs,true,'#DC143C','#8B0000');
+  ctx.fillStyle='#FFD700';ctx.beginPath();ctx.arc(gs.b.x,gs.b.y,BR,0,Math.PI*2);ctx.fill();
+}
+
+// ===== ループ =====
+function loop(now){
+  if(!running) return;
+  if(now-lastT>=1000/60){
+    physics(); drawGame(); lastT=now;
+  }
+  rafId=requestAnimationFrame(loop);
+}
+</script>
+</body>
+</html>
